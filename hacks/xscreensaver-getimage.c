@@ -1776,7 +1776,7 @@ get_image (Screen *screen,
         char *dot = strrchr ((slash ? slash : f2), '.');
         if (dot) *dot = 0;
         /* Replace slashes with newlines */
-        /* while ((dot = strchr(f2, '/'))) *dot = '\n'; */
+        while ((dot = strchr(f2, '/'))) *dot = '\n';
         /* Replace slashes with spaces */
         /* while ((dot = strchr(f2, '/'))) *dot = ' '; */
 
