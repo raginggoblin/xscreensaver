@@ -379,17 +379,6 @@ image_loaded_cb (const char *filename, XRectangle *geom,
       img->geom.height *= scale;
     }
 
-  /* xscreensaver-getimage returns paths relative to the image directory
-     now, so leave the sub-directory part in.  Unless it's an absolute path.
-  */
-  if (img->title && img->title[0] == '/')
-    {
-      /* strip filename to part between last "/" and end. */
-      /* xscreensaver-getimage has already stripped off the extension. */
-      char *s = strrchr (img->title, '/');
-      if (s) strcpy (img->title, s+1);
-    }
-
   if (debug_p)
     fprintf (stderr, "%s: loaded   img %2d: \"%s\"\n",
              blurb(), img->id, (img->title ? img->title : "(null)"));
