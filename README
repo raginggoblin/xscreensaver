@@ -1,4 +1,12 @@
+===============================================================================
 
+I use XScreenSaver with GLSlideshow to show all my photos when my computer is
+idle. But many times I was wondering where a particular photo was taken. In 
+this fork I removed the stripping of the directory structure to show the full
+path of an image and replaced the '/' chars with a newline. The latter 
+functionality was already in place but commented out.
+
+===============================================================================
                               XScreenSaver
 
                              a collection of
