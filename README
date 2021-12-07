@@ -6,6 +6,10 @@ this fork I removed the stripping of the directory structure to show the full
 path of an image and replaced the '/' chars with a newline. The latter 
 functionality was already in place but commented out.
 
+CHANGES TO Zygo/xscreensaver
+1. Show full filepath in GLSlideshow
+2. Replace '/' with '\n' in filepath of GLSlideshow
+
 ===============================================================================
                               XScreenSaver
 
