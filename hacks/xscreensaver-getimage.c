@@ -1770,6 +1770,13 @@ get_image (Screen *screen,
       {
         char *f2 = strdup (file_prop);
 
+        int dir_length = strlen(dir);
+        int i = 0;
+        while (f2[i] == dir[i]) {
+          f2[i] = ' ';
+          i++;
+        }
+
         /* Take the extension off of the file name. */
         /* Duplicated in utils/grabclient.c. */
         char *slash = strrchr (f2, '/');
