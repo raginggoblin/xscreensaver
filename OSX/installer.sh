@@ -1,5 +1,5 @@
-#!/bin/sh
-# XScreenSaver, Copyright © 2013-2020 Jamie Zawinski <jwz@jwz.org>
+#!/bin/bash
+# XScreenSaver, Copyright © 2013-2022 Jamie Zawinski <jwz@jwz.org>
 #
 # Permission to use, copy, modify, distribute, and sell this software and its
 # documentation for any purpose is hereby granted without fee, provided that
@@ -20,7 +20,7 @@
 #set -x
 
 DEBUG=0
-REQUIRED_SPACE=160	# MB. Highly approximate.
+REQUIRED_SPACE=220	# MB. Highly approximate.
 
 export PATH="/bin:/sbin:/usr/bin:/usr/sbin:$PATH"
 
@@ -51,7 +51,7 @@ __EOF__
 }
 
 
-#if[ x"$DSTVOLUME"    = x ]; then error "DSTVOLUME unset";    fi
+if [ x"$DSTVOLUME"    = x ]; then DSTVOLUME="/";              fi
 if [ x"$PACKAGE_PATH" = x ]; then error "PACKAGE_PATH unset"; fi
 if [ x"$HOME"         = x ]; then error "HOME unset";         fi
 
@@ -83,10 +83,13 @@ You can't copy the installer out of the Disk Image!"
 
 free=`df -k "$DSTVOLUME" |
      tail -1 | head -1 | awk '{print $4}'`
-need=`echo $REQUIRED_SPACE \* 1024 | bc`
+need=$(( $REQUIRED_SPACE * 1024 ))
 if [ "$free" -lt "$need" ]; then
- free=`echo $free / 1024 | bc`
+ free=$(( $free / 1024 ))
  error "Not enough disk space: $free MB available, $REQUIRED_SPACE MB required."
+else
+ free=$(( $free / 1024 ))
+ echo "Free space: $free MB" >&2
 fi
 
 
@@ -115,8 +118,12 @@ for f in *.{saver,app} "$UPDATER_SRC" ; do
   rm -rf "$DD" || error "Unable to delete $DD"
 
   if [ "$f" = "$UPDATER_SRC" ]; then
-    echo "Unpacking $DD" >&2
-    ( cd "$DST/" && tar -xzf - ) < "$f" || error "Unable to unpack $f in $DST/"
+    echo "Unpacking  $DST/$UPDATER_DST" >&2
+    # Need to delete the old one first or tar might refuse to replace
+    # subdirectories with symbolic links.
+    rm -rf "$DST/$UPDATER_DST"
+    ( cd "$DST/" && tar -xzf - ) < "$f" ||
+      error "Unable to unpack $f to $DST/$UPDATER_DST"
     f="$UPDATER_DST"
     DD="$DST/$f"
     EXT="app"
@@ -189,7 +196,13 @@ su "$USER" -c "open \"$DST1/$UPDATER_DST\"" &
 sleep 5
 
 
-# Launch System Preferences with the Screen Saver pane selected.
+# Launch System Preferences with the "Desktop" pane selected.  In the olden
+# days, this was a single pane with two tabs, "Desktop" and "Screen Saver",
+# and it would always come up with "Desktop" selected.  As of macOS 13, these
+# are two top-level pages, and this still opens the "Desktop" one.  There is
+# still no way to open the "Screen Saver" page directly.  I'm guessing they
+# are the same code, despite displaying two tabs.  Well, at least this scrolls
+# the list of pages to *approximately* the right spot...
 #
 su "$USER" -c \
  "open /System/Library/PreferencePanes/DesktopScreenEffectsPref.prefPane" &

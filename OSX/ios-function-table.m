@@ -1,5 +1,5 @@
 /* Generated file, do not edit.
-   Created: Mon Oct  4 14:33:40 2021 by build-fntable.pl 1.11.
+   Created: Sat Dec 10 17:33:56 2022 by build-fntable.pl 1.14.
  */
 
 #import <Foundation/Foundation.h>
@@ -40,6 +40,7 @@ extern struct xscreensaver_function_table
  carousel_xscreensaver_function_table,
  ccurve_xscreensaver_function_table,
  celtic_xscreensaver_function_table,
+ chompytower_xscreensaver_function_table,
  circuit_xscreensaver_function_table,
  cityflow_xscreensaver_function_table,
  cloudlife_xscreensaver_function_table,
@@ -119,6 +120,7 @@ extern struct xscreensaver_function_table
  helix_xscreensaver_function_table,
  hexadrop_xscreensaver_function_table,
  hexstrut_xscreensaver_function_table,
+ hextrail_xscreensaver_function_table,
  hilbert_xscreensaver_function_table,
  hopalong_xscreensaver_function_table,
  hydrostat_xscreensaver_function_table,
@@ -156,6 +158,7 @@ extern struct xscreensaver_function_table
  morph3d_xscreensaver_function_table,
  mountain_xscreensaver_function_table,
  munch_xscreensaver_function_table,
+ nakagin_xscreensaver_function_table,
  nerverot_xscreensaver_function_table,
  noof_xscreensaver_function_table,
  noseguy_xscreensaver_function_table,
@@ -209,6 +212,7 @@ extern struct xscreensaver_function_table
  spotlight_xscreensaver_function_table,
  sproingies_xscreensaver_function_table,
  squiral_xscreensaver_function_table,
+ squirtorus_xscreensaver_function_table,
  stairs_xscreensaver_function_table,
  starfish_xscreensaver_function_table,
  starwars_xscreensaver_function_table,
@@ -220,7 +224,6 @@ extern struct xscreensaver_function_table
  swirl_xscreensaver_function_table,
  tangram_xscreensaver_function_table,
  tessellimage_xscreensaver_function_table,
- thornbird_xscreensaver_function_table,
  timetunnel_xscreensaver_function_table,
  topblock_xscreensaver_function_table,
  triangle_xscreensaver_function_table,
@@ -288,6 +291,7 @@ NSDictionary *make_function_table_dict(void) {
 	@"Carousel":	[NSValue valueWithPointer:&carousel_xscreensaver_function_table],
 	@"C Curve":	[NSValue valueWithPointer:&ccurve_xscreensaver_function_table],
 	@"Celtic":	[NSValue valueWithPointer:&celtic_xscreensaver_function_table],
+	@"Chompy Tower":	[NSValue valueWithPointer:&chompytower_xscreensaver_function_table],
 	@"Circuit":	[NSValue valueWithPointer:&circuit_xscreensaver_function_table],
 	@"City Flow":	[NSValue valueWithPointer:&cityflow_xscreensaver_function_table],
 	@"Cloud Life":	[NSValue valueWithPointer:&cloudlife_xscreensaver_function_table],
@@ -367,6 +371,7 @@ NSDictionary *make_function_table_dict(void) {
 	@"Helix":	[NSValue valueWithPointer:&helix_xscreensaver_function_table],
 	@"Hexadrop":	[NSValue valueWithPointer:&hexadrop_xscreensaver_function_table],
 	@"Hex Strut":	[NSValue valueWithPointer:&hexstrut_xscreensaver_function_table],
+	@"Hex Trail":	[NSValue valueWithPointer:&hextrail_xscreensaver_function_table],
 	@"Hilbert":	[NSValue valueWithPointer:&hilbert_xscreensaver_function_table],
 	@"Hopalong":	[NSValue valueWithPointer:&hopalong_xscreensaver_function_table],
 	@"Hydrostat":	[NSValue valueWithPointer:&hydrostat_xscreensaver_function_table],
@@ -404,6 +409,7 @@ NSDictionary *make_function_table_dict(void) {
 	@"Morph 3D":	[NSValue valueWithPointer:&morph3d_xscreensaver_function_table],
 	@"Mountain":	[NSValue valueWithPointer:&mountain_xscreensaver_function_table],
 	@"Munch":	[NSValue valueWithPointer:&munch_xscreensaver_function_table],
+	@"Nakagin":	[NSValue valueWithPointer:&nakagin_xscreensaver_function_table],
 	@"Nerve Rot":	[NSValue valueWithPointer:&nerverot_xscreensaver_function_table],
 	@"Noof":	[NSValue valueWithPointer:&noof_xscreensaver_function_table],
 	@"Nose Guy":	[NSValue valueWithPointer:&noseguy_xscreensaver_function_table],
@@ -457,6 +463,7 @@ NSDictionary *make_function_table_dict(void) {
 	@"Spotlight":	[NSValue valueWithPointer:&spotlight_xscreensaver_function_table],
 	@"Sproingies":	[NSValue valueWithPointer:&sproingies_xscreensaver_function_table],
 	@"Squiral":	[NSValue valueWithPointer:&squiral_xscreensaver_function_table],
+	@"Squirtorus":	[NSValue valueWithPointer:&squirtorus_xscreensaver_function_table],
 	@"Stairs":	[NSValue valueWithPointer:&stairs_xscreensaver_function_table],
 	@"Starfish":	[NSValue valueWithPointer:&starfish_xscreensaver_function_table],
 	@"Star Wars":	[NSValue valueWithPointer:&starwars_xscreensaver_function_table],
@@ -468,7 +475,6 @@ NSDictionary *make_function_table_dict(void) {
 	@"Swirl":	[NSValue valueWithPointer:&swirl_xscreensaver_function_table],
 	@"Tangram":	[NSValue valueWithPointer:&tangram_xscreensaver_function_table],
 	@"Tessellimage":	[NSValue valueWithPointer:&tessellimage_xscreensaver_function_table],
-	@"Thornbird":	[NSValue valueWithPointer:&thornbird_xscreensaver_function_table],
 	@"Time Tunnel":	[NSValue valueWithPointer:&timetunnel_xscreensaver_function_table],
 	@"Top Block":	[NSValue valueWithPointer:&topblock_xscreensaver_function_table],
 	@"Triangle":	[NSValue valueWithPointer:&triangle_xscreensaver_function_table],

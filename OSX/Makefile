@@ -1,14 +1,6 @@
-# XScreenSaver for MacOS X, Copyright © 2006-2021 Jamie Zawinski.
+# XScreenSaver for MacOS X, Copyright © 2006-2022 Jamie Zawinski.
 
-XCODE_APP = /Applications/Xcode.app
-
-# To build savers that will run on MacOS 10.6 and 10.7, Xcode 5.0.2 must
-# be used (as that's the latest version of Xcode that ships with a version
-# of clang that implements "-fobjc-gc").  However, Xcode 5.0.2 will not
-# launch on MacOS 10.11 or later.
-#
-# XCODE_APP = /Applications/Xcode-5.0.2.app
-
+XCODE_APP  = /Applications/Xcode.app
 TARGETS    = All Savers
 #ARCH      = -arch i386 -arch x86_64 ONLY_ACTIVE_ARCH=NO
 CERT	   = 'Developer ID Installer: Jamie Zawinski (4627ATJELP)'
@@ -66,29 +58,34 @@ Sparkle.framework:
 	mv bin sparkle-bin
 
 # Download and resize images from jwz.org.
-# This saves us having to include 4MB of images in the tar file
-# that will only be used by a vast minority of people building
-# from source.
-# update-info-plist.pl runs this as needed.
-# Might be better to do this with curl, since that is installed by default.
+# Largely duplicated in android/Makefile.
+# This saves us having to include 4MB of images in the tar file that
+# will only be used by a vast minority of people building from source.
+# update-info-plist.pl runs "make" to do this as needed.
 
 BASE = xscreensaver/screenshots/
-URL = https://www.jwz.org/$(BASE)
+URL = https://cdn.jwz.org/$(BASE)
 
 # I find wget easier to deal with, but curl is usually installed by default.
 #WGET = wget -q -U xscreensaver-build-osx --content-on-error=0 -O-
-WGET = curl -s -A xscreensaver-build-osx -f
+WGET = curl -sL -A xscreensaver-build-osx -f
 
+# ImageMagick isn't installed by default, but neither is anything similar.
+#
 # Apple savers have "thumbnail.png" at 90x58 and "thumbnail@2x.png" at 180x116.
 # System Preferences stretches those to fill a bordered 170x105 frame.
-# These args take our source images (usually 200x150) and fits them into a
-# 180x116 box, cropping either horizontally or vertically as needed.
-# It also makes the alpha mask have rounded corners.
+#
+# This recipe takes our source images (usually 200x150) and fits them into
+# a 180x116 box, cropping either horizontally or vertically as needed, with
+# rounded corners in the alpha mask.
 #
 THUMB_SIZE=180x116
+THUMB_CURVE=15
 CVT  = -thumbnail $(THUMB_SIZE)'^' -gravity center -extent $(THUMB_SIZE) \
      \( +clone  -alpha extract \
-        -draw 'fill black polygon 0,0 0,6 6,0 fill white circle 6,6 6,0' \
+        -draw \
+          'fill black polygon 0,0 0,$(THUMB_CURVE) $(THUMB_CURVE),0 \
+           fill white circle $(THUMB_CURVE),$(THUMB_CURVE) $(THUMB_CURVE),0' \
         \( +clone -flip \) -compose Multiply -composite \
         \( +clone -flop \) -compose Multiply -composite \
      \) -alpha off -compose CopyOpacity -composite \
@@ -103,7 +100,6 @@ $(THUMBDIR)/%.png:
 	FILE2="$@" ;							\
 	TMP="$$FILE2".tmp ;						\
 	URL="$(URL)$$FILE1" ;						\
-	URL2="$(URL)retired/$$FILE1" ;					\
 	if [ ! -d $(THUMBDIR) ]; then mkdir -p $(THUMBDIR) ; fi ;	\
 	rm -f "$$FILE2" "$$TMP" ;					\
 	set +e ;							\
@@ -112,10 +108,6 @@ $(THUMBDIR)/%.png:
 	else								\
 	  echo "downloading $$URL..." ;					\
 	  $(WGET) "$$URL" > "$$TMP" ;					\
-	  if [ ! -s "$$TMP" ]; then					\
-	    echo "downloading $$URL2..." ;				\
-	    $(WGET) "$$URL2" > "$$TMP" ;				\
-	  fi ;								\
 	  if [ ! -s "$$TMP" ]; then					\
 	    rm -f "$$TMP" ;						\
 	    echo "failed: $$URL" ;					\
@@ -173,63 +165,6 @@ check_versions:
   exit $$RESULT
 
 
-check_gc:
-	@\
-  DIR="build/Release" ;							\
-  RESULT=0 ;								\
-  for S in "$$DIR/"*.saver ; do						\
-   SS=`echo "$$S" | sed -e 's@^.*/@@' -e 's/.saver$$//'` ;		\
-   D="$$S/Contents/MacOS/$$SS" ;					\
-   V=`otool -s __DATA __objc_imageinfo "$$D"				\
-      | grep ' 00 02 00 '` ;						\
-   if [ -z "$$V" ]; then						\
-     echo "$$S does not have GC enabled" ;				\
-     RESULT=1 ;								\
-   fi ;									\
-  done ;								\
-									\
-  for D in "$$DIR"/webcollage-helper					\
-	   "$$DIR"/*.saver/Contents/*/webcollage-helper			\
-	   "$$DIR"/*.app/Contents/*/XScreenSaverUpdater			\
-   ; do									\
-   V=`otool -s __DATA __objc_imageinfo "$$D"				\
-      | grep ' 00 02 00 '` ;						\
-   if [ ! -z "$$V" ]; then						\
-     echo "$$D has GC enabled" ;					\
-     RESULT=1 ;								\
-   fi ;									\
-  done ;								\
-									\
-  if [ "$$RESULT" = 0 ]; then echo "GC enabled" ; fi ;			\
-  exit $$RESULT
-
-
-check_coretext:
-	@\
-  DIR="build/Release" ;							\
-  RESULT=0 ;								\
-  for S in "$$DIR/"*.{saver,app} ; do					\
-   SS=`echo "$$S" | sed -e 's@^.*/@@' -e 's/[.][a-z]*$$//'` ;		\
-   D="$$S/Contents/MacOS/$$SS" ;					\
-   FF=`otool -l "$$D"							\
-      | fgrep '/CoreText.framework/'					\
-      | sed -n 's/^ *name \([^ ]*\).*$$/\1/p'` ;			\
-   if [ -z "$$FF" ] ; then						\
-     echo "$$S not linked with CoreText" >/dev/null ;			\
-   else 								\
-     OK=`echo "$$FF" | fgrep -v '/ApplicationServices.framework/'` ;	\
-     if [ ! -z "$$OK" ]; then						\
-       echo "$$S is linked with the wrong CoreText: $$FF" ;		\
-       RESULT=1 ;							\
-     else								\
-       echo "$$S linked right: $$FF" >/dev/null ;			\
-     fi ;								\
-   fi ;									\
-  done ;								\
-  if [ "$$RESULT" = 0 ]; then echo "CoreText linked correctly" ; fi ;	\
-  exit $$RESULT
-
-
 # Arrrrgh
 ios-function-table.m::
 	@./build-fntable.pl build/Debug-iphonesimulator/XScreenSaver.app $@
@@ -280,22 +215,29 @@ test_sig::
   BASE="xscreensaver-$$V" ;						    \
   OUTDIR="../archive" ;							    \
   DMG="$$OUTDIR/$$BASE.dmg" ;						    \
-  SIG=`sed -n 's/^.*dsaSignature="\(.*\)".*/\1/p' updates.xml` ;	    \
-  PUB="sparkle_dsa_pub.pem" ;						    \
+  SIG1=`sed -n 's/^.*dsaSignature="\(.*\)".*/\1/p' updates.xml | head -1` ; \
+  SIG2=`sed -n  's/^.*edSignature="\(.*\)".*/\1/p' updates.xml | head -1` ; \
+  PUB1="sparkle_dsa_pub.pem" ;						    \
   NN="t.$$$$" ;								    \
   SIGB=/tmp/$$NN.sig ;							    \
   HASH=/tmp/$$NN.hash ;							    \
   rm -f "$$SIGB" "$$HASH" ;						    \
-  if ( echo "$$SIG" | grep -qi ERROR ); then				    \
-    echo "No signature in updates.xml" >&2 ; exit 1 ;			    \
+  if ( echo "$$SIG1" | grep -qi ERROR ); then				    \
+    echo "No DSA signature in updates.xml" >&2 ; exit 1 ;		    \
   fi ;									    \
-  echo "$$SIG " | base64 -D  > "$$SIGB" ;				    \
+  if ( echo "$$SIG2" | grep -qi ERROR ); then				    \
+    echo "No ED signature in updates.xml" >&2 ; exit 1 ;		    \
+  fi ;									    \
+									    \
   set -e ;								    \
+  echo "$$SIG1 " | base64 -D  > "$$SIGB" ;				    \
   for OPENSSL in /usr/bin/openssl /opt/local/bin/openssl ; do		    \
     $$OPENSSL dgst -sha1 -binary  < "$$DMG"  > "$$HASH" ;		    \
-    /bin/echo -n "$$OPENSSL	`$$OPENSSL version`:	" ;		    \
-    $$OPENSSL dgst -sha1 -verify "$$PUB" -signature "$$SIGB" "$$HASH" ;	    \
+    /bin/echo -n "DSA $$OPENSSL    	`$$OPENSSL version`:	" ;	    \
+    $$OPENSSL dgst -sha1 -verify "$$PUB1" -signature "$$SIGB" "$$HASH" ;    \
   done ;								    \
+  echo "Warning: not verifying edSignature because I don't know how..." ;   \
+									    \
   rm -f "$$SIGB" "$$HASH" ;						    \
 
 
@@ -348,8 +290,7 @@ build/Release/installer.pkg: installer.rtf installer.xml installer.sh installer.
   rm -rf "$$STAGE" ;							\
 
 
-dmg:: distdepend check_versions check_coretext
-#dmg:: check_gc
+dmg:: distdepend check_versions
 dmg:: build/Release/installer.pkg
 dmg:: _dmg notarize staple updates.xml
 
@@ -471,7 +412,7 @@ _dmg::
 # To set up notarization:
 #  - Log in on https://appleid.apple.com/
 #  - Generate App-Specific Password, "altool-notarizer"
-#  - Keychain Access / New
+#  - Keychain Access / New Password Item...
 #  - Name: "altool-notarizer", Account: "jwz@jwz.org",
 #    Pass: the one you just generated.
 #
@@ -529,6 +470,13 @@ notarize::
   exit 0
 
 
+# Uploading the DMG to the notarizer generated a gatekeeper ticket for
+# each enclosed item.  Staple those tickets to the DMG file.
+#
+# If we had uploaded a .zip, we would need to staple to the enclosed item
+# and re-generate the .zip, but I think we can staple directly to a DMG
+# without needing to re-generate it?
+#
 staple::
 	@								      \
   set -e ;								      \

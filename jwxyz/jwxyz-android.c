@@ -49,7 +49,7 @@
 #include "jwzglesI.h"
 #include "jwxyz-android.h"
 #include "textclient.h"
-#include "grabscreen.h"
+#include "grabclient.h"
 #include "pow2.h"
 
 
@@ -1760,6 +1760,9 @@ jwxyz_render_text (Display *dpy, void *native_font,
 }
 
 
+// Returns the verbose Unicode name of this character, like "agrave" or
+// "daggerdouble".  Used by Unicrud, and by Fontglide with debugMetrics.
+//
 char *
 jwxyz_unicode_character_name (Display *dpy, Font fid, unsigned long uc)
 {

@@ -1,4 +1,4 @@
-/* xscreensaver, Copyright © 2006-2021 Jamie Zawinski <jwz@jwz.org>
+/* xscreensaver, Copyright © 2006-2022 Jamie Zawinski <jwz@jwz.org>
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
  * documentation for any purpose is hereby granted without fee, provided that
@@ -632,6 +632,9 @@ static void layout_group (NSView *group, BOOL horiz_p);
 
 
 @implementation XScreenSaverConfigSheet
+{
+  NSString *prev_imagedir;
+}
 
 # define LEFT_MARGIN      20   // left edge of window
 # define COLUMN_SPACING   10   // gap between e.g. labels and text fields
@@ -696,7 +699,11 @@ static void layout_group (NSView *group, BOOL horiz_p);
   }
   
   while (opts_array[0].option) {
-    if (!strcmp (opts_array[0].option, buf)) {
+    const char *s1 = opts_array[0].option;
+    const char *s2 = buf;
+    if (s1[0] == '-' && s1[1] == '-') s1++;  /* -x and --x are the same */
+    if (s2[0] == '-' && s2[1] == '-') s2++;
+    if (!strcmp (s1, s2)) {
       const char *ret = 0;
 
       if (opts_array[0].argKind == XrmoptionNoArg) {
@@ -864,7 +871,20 @@ static void layout_group (NSView *group, BOOL horiz_p);
   [globalDefaultsController commitEditing];
   [userDefaultsController   save:self];
   [globalDefaultsController save:self];
-  [NSApp endSheet:self returnCode:NSOKButton];
+
+  /* Validate the new value of the imageDirectory as the OK button is clicked.
+     If the user selected a directory from the Browse file selector, this 
+     check has already happened; but if they edited the text field directly,
+     this is our last chance to validate it.  Note that in this case, we are
+     validating it after it has already been stored in the preferences DB. */
+  {
+    NSString *pref_key = @"imageDirectory";
+    NSUserDefaultsController *prefs = [self controllerForKey:pref_key];
+    NSString *imagedir = [[prefs defaults] objectForKey:pref_key];
+    [self validateImageDirectory: imagedir];
+  }
+
+  [NSApp endSheet:self returnCode:NSModalResponseOK];
   [self close];
 }
 
@@ -872,7 +892,7 @@ static void layout_group (NSView *group, BOOL horiz_p);
 {
   [userDefaultsController   revert:self];
   [globalDefaultsController revert:self];
-  [NSApp endSheet:self returnCode:NSCancelButton];
+  [NSApp endSheet:self returnCode:NSModalResponseCancel];
   [self close];
 }
 # endif // !HAVE_IPHONE
@@ -1526,8 +1546,11 @@ hreffify (NSText *nstext)
     NSAssert1 (0, @"no default in %@", [node name]);
     return;
   }
-  if (cvt && ![cvt isEqualToString:@"invert"]) {
-    NSAssert1 (0, @"if provided, \"convert\" must be \"invert\" in %@",
+  if (cvt &&
+      !([cvt isEqualToString:@"invert"] ||
+        [cvt isEqualToString:@"ratio"])) {
+    NSAssert1 (0,
+           @"if provided, \"convert\" must be \"invert\" or \"ratio\" in %@",
                label);
   }
     
@@ -1553,7 +1576,8 @@ hreffify (NSText *nstext)
 # ifndef HAVE_TVOS
     InvertedSlider *slider =
       [[InvertedSlider alloc] initWithFrame:rect
-                                   inverted: !!cvt
+                                   inverted: [cvt isEqualToString:@"invert"]
+                                   ratio:    [cvt isEqualToString:@"ratio"]
                                    integers: !float_p];
     [slider setMaxValue:[high doubleValue]];
     [slider setMinValue:[low  doubleValue]];
@@ -2072,9 +2096,17 @@ set_menu_item_object (NSMenuItem *item, NSObject *obj)
   hreffify (lab);
 
 #  else  // USE_HTML_LABELS
+
+  // if (self.view.frame.size.width > 640)  // A little vertical padding
+  text = [@"\n" stringByAppendingString: text];
+
+  // Small font on iPhone; normal font on iPad.
+  double pointsize = (self.view.frame.size.width > 800
+                      ? FONT_SIZE
+                      : [NSFont systemFontSize]);
   HTMLLabel *lab = [[HTMLLabel alloc] 
                      initWithText:text
-                     font:[NSFont systemFontOfSize: [NSFont systemFontSize]]];
+                             font:[NSFont systemFontOfSize: pointsize]];
   [lab autorelease];
   [lab setFrame:rect];
   [lab sizeToFit];
@@ -2165,6 +2197,109 @@ set_menu_item_object (NSMenuItem *item, NSObject *obj)
 }
 
 
+#ifndef HAVE_IPHONE
+- (void) endValidateSheet:(NSWindow *)win
+{
+  [NSApp endSheet: win returnCode: NSModalResponseOK];
+}
+
+- (void) validateImageDirectory: (NSString *) imagedir
+{
+  if (!prev_imagedir || !imagedir ||
+      [prev_imagedir isEqualToString: imagedir]) {
+    return;
+  }
+
+  prev_imagedir = imagedir;
+
+  // Create a background task running xscreensaver-getimage-file.
+  //
+  // Note that "Contents/Resources/" in the .saver bundle is on $PATH,
+  // but NSTask doesn't search $PATH for the executable.  Sigh.
+  //
+  NSString *cmd0 = @"xscreensaver-getimage-file";
+  NSBundle *nsb = [NSBundle bundleForClass:[self class]];
+  NSString *dir = [nsb resourcePath];    // "Contents/Resources"
+  NSString *cmd = [dir stringByAppendingPathComponent: cmd0];
+
+  if (! [[NSFileManager defaultManager] fileExistsAtPath: cmd]) {
+    NSAssert1 (0, @"file does not exist: %@", cmd);
+    return;
+  }
+
+  NSArray *av = @[ imagedir ];
+  NSTask *task = [[NSTask alloc] init];
+  task.launchPath = cmd;
+  task.arguments = av;
+  NSPipe *pipe = [NSPipe pipe];
+  task.standardOutput = [NSPipe pipe];  // Just to close it.
+  task.standardError = pipe;
+
+  // Create an alert with a spinner in it.
+  //
+  NSAlert *alert = [[NSAlert alloc] init];
+  [alert setMessageText: [NSString stringWithFormat:
+                                     @"Populating image cache for:\n%@",
+                                   imagedir]];
+  [alert setInformativeText: @"This may take a little while..."];
+  [alert addButtonWithTitle: @"Cancel"];
+  [alert setAlertStyle: NSAlertStyleWarning];
+
+  NSProgressIndicator *spinner =
+    [[NSProgressIndicator alloc] initWithFrame: NSMakeRect(0,0,40,40)];
+  spinner.indeterminate = TRUE;
+  spinner.style = NSProgressIndicatorStyleSpinning;
+  [spinner sizeToFit];
+  [spinner startAnimation: self];
+  [alert setAccessoryView: spinner];
+
+  task.terminationHandler = ^(NSTask *tt) {
+    // The task terminated, so tell the main UI thread to un-post the alert.
+    [self performSelectorOnMainThread:
+            @selector(endValidateSheet:)
+                           withObject: alert.window
+                        waitUntilDone: YES];
+  };
+
+  NSLog (@"launching %@ %@", cmd, av[0]);
+  [task launch];
+
+  // Wait for either the Cancel button or the NSTask to end.
+  //
+  [alert beginSheetModalForWindow: self
+                completionHandler:^(NSModalResponse returnCode) {
+      if (task.running)
+        [task terminate];
+      NSLog (@"%@ finished", cmd);
+
+      NSData *data = [pipe.fileHandleForReading readDataToEndOfFile];
+      NSString *txt = [[NSString alloc] initWithData:data
+                                            encoding:NSUTF8StringEncoding];
+
+      if ([txt length]) {
+
+        // "s/^xscreensaver-getimage-file: //gm;"
+        txt = [txt stringByReplacingOccurrencesOfString:
+                           [cmd0 stringByAppendingString: @": "]
+                                             withString:@""];
+
+        NSAlert *alert2 = [[NSAlert alloc] init];
+        // [alert2 setMessageText: @"Warning"];
+        // [alert2 setInformativeText: txt];
+        [alert2 setMessageText: [@"Warning:\n\n"
+                                    stringByAppendingString: txt]];
+
+        [alert2 addButtonWithTitle: @"OK"];
+        [alert2 setAlertStyle: NSAlertStyleWarning];
+        [alert2 beginSheetModalForWindow: self
+                       completionHandler:^(NSModalResponse returnCode) {
+          }];
+      }
+    }];
+}
+#endif // !HAVE_IPHONE
+
+
 /* Creates the NSTextField described by the given XML node,
    and hooks it up to a Choose button and a file selector widget.
  */
@@ -2173,6 +2308,7 @@ set_menu_item_object (NSMenuItem *item, NSObject *obj)
                  dirsOnly: (BOOL) dirsOnly
                 withLabel: (BOOL) label_p
                  editable: (BOOL) editable_p
+                 imagedir: (BOOL) imagedir_p
 {
 # ifndef HAVE_IPHONE	// No files. No selectors.
   NSMutableDictionary *dict = [@{ @"id":     @"",
@@ -2220,6 +2356,8 @@ set_menu_item_object (NSMenuItem *item, NSObject *obj)
   [self placeChild:txt on:parent right:(label ? YES : NO)];
 
   [self bindSwitch:txt cmdline:arg];
+
+//####  [txt setDelegate: self];   // For controlTextDidEndEditing, above.
   [txt release];
 
   // Make the text field and label be the same height, whichever is taller.
@@ -2249,10 +2387,21 @@ set_menu_item_object (NSMenuItem *item, NSObject *obj)
   [choose setFrameOrigin:rect.origin];
 
   [choose setTarget:[parent window]];
-  if (dirsOnly)
+  if (imagedir_p)
+    [choose setAction:@selector(fileSelectorChooseImageDirAction:)];
+  else if (dirsOnly)
     [choose setAction:@selector(fileSelectorChooseDirsAction:)];
   else
     [choose setAction:@selector(fileSelectorChooseAction:)];
+
+  if (imagedir_p) {
+    /* Hang on to the value that "imageDirectory" had before posting the
+       dialog so that once the user clicks OK, we can tell whether it has
+       changed, and validate the new value if so. */
+    NSString *pref_key = @"imageDirectory";
+    NSUserDefaultsController *prefs = [self controllerForKey:pref_key];
+    prev_imagedir = [[prefs defaults] objectForKey:pref_key];
+  }
 
   [choose release];
 # endif // !HAVE_IPHONE
@@ -2264,8 +2413,9 @@ set_menu_item_object (NSMenuItem *item, NSObject *obj)
 /* Runs a modal file selector and sets the text field's value to the
    selected file or directory.
  */
-static void
-do_file_selector (NSTextField *txt, BOOL dirs_p)
+- (void) doFileSelector: (NSTextField *)txt
+                   dirs: (BOOL)dirs_p
+               imagedir: (BOOL)imagedir_p
 {
   NSOpenPanel *panel = [NSOpenPanel openPanel];
   [panel setAllowsMultipleSelection:NO];
@@ -2289,9 +2439,10 @@ do_file_selector (NSTextField *txt, BOOL dirs_p)
   }
 
   NSInteger result = [panel runModal];
-  if (result == NSOKButton) {
+  if (result == NSModalResponseOK) {
     NSArray *files = [panel URLs];
     NSString *file = ([files count] > 0 ? [[files objectAtIndex:0] path] : @"");
+
     file = [file stringByAbbreviatingWithTildeInPath];
     [txt setStringValue:file];
 
@@ -2307,6 +2458,16 @@ do_file_selector (NSTextField *txt, BOOL dirs_p)
     if ([path hasPrefix:@"values."])  // WTF.
       path = [path substringFromIndex:7];
     [[prefs values] setValue:file forKey:path];
+
+    if (imagedir_p) {
+      /* Validate the new value of "imageDirectory" if it has changed.  If we
+         didn't do this here it would still happen when the OK button of the
+         settings panel was pressed, but doing it as soon as the file selector
+         dialog is closed is more timely.  Note that in this case we are
+         validating a pathanme that has not yet been written to the resource
+         database: that doesn't happen until they click OK (and not Cancel). */
+      [self validateImageDirectory: file];
+    }
   }
 }
 
@@ -2338,14 +2499,21 @@ find_text_field_of_button (NSButton *button)
 {
   NSButton *choose = (NSButton *) arg;
   NSTextField *txt = find_text_field_of_button (choose);
-  do_file_selector (txt, NO);
+  [self doFileSelector: txt dirs:NO imagedir:NO];
 }
 
 - (void) fileSelectorChooseDirsAction:(NSObject *)arg
 {
   NSButton *choose = (NSButton *) arg;
   NSTextField *txt = find_text_field_of_button (choose);
-  do_file_selector (txt, YES);
+  [self doFileSelector: txt dirs:YES imagedir:NO];
+}
+
+- (void) fileSelectorChooseImageDirAction:(NSObject *)arg
+{
+  NSButton *choose = (NSButton *) arg;
+  NSTextField *txt = find_text_field_of_button (choose);
+  [self doFileSelector: txt dirs:YES imagedir:YES];
 }
 
 #endif // !HAVE_IPHONE
@@ -2495,7 +2663,7 @@ find_text_field_of_button (NSButton *button)
            @{ @"id":  @"textFile",
               @"arg": @"-text-file %" }];
   [self makeFileSelector:node2 on:rgroup
-        dirsOnly:NO withLabel:NO editable:NO];
+        dirsOnly:NO withLabel:NO editable:NO imagedir:NO];
   [node2 release];
 # endif // !HAVE_IPHONE
 
@@ -2642,7 +2810,7 @@ find_text_field_of_button (NSButton *button)
               @"arg":    @"-image-directory %",
             }];
   [self makeFileSelector:node2 on:parent
-        dirsOnly:YES withLabel:YES editable:YES];
+        dirsOnly:YES withLabel:YES editable:YES imagedir:YES];
   [node2 release];
 
 # undef SCREENS
@@ -3096,7 +3264,7 @@ layout_group (NSView *group, BOOL horiz_p)
 
   } else if ([name isEqualToString:@"file"]) {
     [self makeFileSelector:node on:parent
-          dirsOnly:NO withLabel:YES editable:NO];
+          dirsOnly:NO withLabel:YES editable:NO imagedir:NO];
 
   } else if ([name isEqualToString:@"number"]) {
     [self makeNumberSelector:node on:parent];
@@ -3442,10 +3610,41 @@ wrap_with_buttons (NSWindow *window, NSView *panel)
   CGRect r = [parent frame];
   r.size = [[UIScreen mainScreen] bounds].size;
   [parent setFrame:r];
+
   [self traverseChildren:node on:parent];
 
 # endif // HAVE_IPHONE
 }
+
+
+#ifdef HAVE_IPHONE
+- (void)viewWillLayoutSubviews
+{
+  // Add left and right padding so that the lines aren't super wide.
+  // The whitespace looks a little odd, but short lines are easier to read.
+  //
+  double max = 700;
+  double w = self.tableView.frame.size.width;
+  if (w > max) {
+    double margin = (w - max) / 2;
+# if 0  // Why doesn't this work?
+    self.tableView.layoutMargins = UIEdgeInsetsMake (0, margin, 0, margin);
+# else
+    NSRect f = self.tableView.frame;
+    f.origin.x += margin;
+    f.size.width -= margin * 2;
+    [self.tableView setFrame: f];
+
+    // Use white instead of gray between sections.
+    self.tableView.backgroundColor = [UIColor whiteColor];
+# endif
+  }
+
+  // Make the left and right margins match our background color.
+  self.tableView.superview.backgroundColor = self.tableView.backgroundColor;
+
+}
+#endif // HAVE_IPHONE
 
 
 - (void)parser:(NSXMLParser *)parser

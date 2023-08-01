@@ -1,4 +1,4 @@
-/* xscreensaver, Copyright © 2006-2021 Jamie Zawinski <jwz@jwz.org>
+/* xscreensaver, Copyright © 2006-2022 Jamie Zawinski <jwz@jwz.org>
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
  * documentation for any purpose is hereby granted without fee, provided that
@@ -144,7 +144,6 @@
   self.view = backgroundView;
   [backgroundView release];
 }
-
 
 # ifndef HAVE_TVOS
 - (void)aboutPanel:(UIView *)saverView
@@ -682,31 +681,24 @@ relabel_menus (NSObject *v, NSString *old_str, NSString *new_str)
   NSWindow *prefs = [sv configureSheet];
   NSAssert (prefs, @"no configureSheet in %@", sv);
 
-  [NSApp beginSheet:prefs
-     modalForWindow:[sv window]
-      modalDelegate:self
-     didEndSelector:@selector(preferencesClosed:returnCode:contextInfo:)
-        contextInfo:nil];
+  [sv.window beginSheet:prefs
+      completionHandler:^(NSInteger code) {
+      [NSApp stopModalWithCode: code];
+    }];
+
   NSUInteger code = [NSApp runModalForWindow:prefs];
   
   /* Restart the animation if the "OK" button was hit, but not if "Cancel".
      We have to restart *both* animations, because the xlockmore-style
      ones will blow up if one re-inits but the other doesn't.
    */
-  if (code != NSCancelButton) {
+  if (code != NSModalResponseCancel) {
     if ([sv isAnimating])
       [sv stopAnimation];
     [sv startAnimation];
   }
 }
 
-
-- (void) preferencesClosed: (NSWindow *) sheet
-                returnCode: (int) returnCode
-               contextInfo: (void  *) contextInfo
-{
-  [NSApp stopModalWithCode:returnCode];
-}
 
 #else  // HAVE_IPHONE
 
@@ -1479,10 +1471,10 @@ FAIL:
   
   NSWindow *win = [[NSWindow alloc]
                       initWithContentRect:rect
-                                styleMask:(NSTitledWindowMask |
-                                           NSClosableWindowMask |
-                                           NSMiniaturizableWindowMask |
-                                           NSResizableWindowMask)
+                                styleMask:(NSWindowStyleMaskTitled |
+                                           NSWindowStyleMaskClosable |
+                                           NSWindowStyleMaskMiniaturizable |
+                                           NSWindowStyleMaskResizable)
                                   backing:NSBackingStoreBuffered
                                     defer:YES
                                    screen:screen];

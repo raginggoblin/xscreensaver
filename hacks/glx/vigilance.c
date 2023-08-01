@@ -357,7 +357,7 @@ init_camera (ModeInfo *mi)
 static XYZ
 normalize (XYZ p)
 {
-  GLfloat d = sqrt(p.x*p.x + p.y*p.y * p.z*p.z);
+  GLfloat d = sqrt(p.x*p.x + p.y*p.y + p.z*p.z);
   if (d < 0.0000001)
     p.x = p.y = p.z = 0;
   else
@@ -986,7 +986,9 @@ draw_ground (ModeInfo *mi, GLfloat color[4])
       GLfloat fog_color[4] = { 0, 0, 0, 1 };
 
       glLineWidth (2);
+# ifndef GL_LINE_SMOOTH_BROKEN
       glEnable (GL_LINE_SMOOTH);
+# endif
       glHint (GL_LINE_SMOOTH_HINT, GL_NICEST);
       glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); 
       glEnable (GL_BLEND);
@@ -1029,8 +1031,10 @@ draw_ground (ModeInfo *mi, GLfloat color[4])
       glRotatef (90, 1, 0, 0);
     }
 
+# ifndef GL_LINE_SMOOTH_BROKEN
   if (!wire)
     glDisable (GL_LINE_SMOOTH);
+# endif
 
   glPopMatrix();
 

@@ -298,7 +298,8 @@ fluidballs_init (Display *dpy, Window window)
   state->max_radius = get_float_resource (dpy, "size", "Size") / 2;
   if (state->max_radius < 1.0) state->max_radius = 1.0;
 
-  if (state->xgwa.width > 2560) state->max_radius *= 2;  /* Retina displays */
+  if (state->xgwa.width > 2560 || state->xgwa.height > 2560)
+    state->max_radius *= 3;  /* Retina displays */
 
   if (state->xgwa.width < 100 || state->xgwa.height < 100) /* tiny window */
     {
@@ -815,8 +816,10 @@ fluidballs_free (Display *dpy, Window window, void *closure)
   XFreeGC (dpy, state->draw_gc);
   XFreeGC (dpy, state->draw_gc2);
   XFreeGC (dpy, state->erase_gc);
-  XftFontClose (state->dpy, state->font);
-  XftDrawDestroy (state->xftdraw);
+  if (state->font)
+    XftFontClose (state->dpy, state->font);
+  if (state->xftdraw)
+    XftDrawDestroy (state->xftdraw);
   free (state->m);
   free (state->r);
   free (state->vx);

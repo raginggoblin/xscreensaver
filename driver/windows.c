@@ -1,5 +1,5 @@
 /* windows.c --- turning the screen black; dealing with visuals, virtual roots.
- * xscreensaver, Copyright © 1991-2021 Jamie Zawinski <jwz@jwz.org>
+ * xscreensaver, Copyright © 1991-2022 Jamie Zawinski <jwz@jwz.org>
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
  * documentation for any purpose is hereby granted without fee, provided that
@@ -38,6 +38,7 @@
 #include "atoms.h"
 #include "visual.h"
 #include "screens.h"
+#include "screenshot.h"
 #include "fade.h"
 #include "resources.h"
 #include "xft.h"
@@ -435,6 +436,16 @@ blank_screen (saver_info *si)
   initialize_screensaver_window (si);
   sync_server_dpms_settings (si->dpy, p);
 
+  /* Save a screenshot.  Must be before fade-out. */
+  for (i = 0; i < si->nscreens; i++)
+    {
+      saver_screen_info *ssi = &si->screens[i];
+      if (ssi->screenshot)
+        XFreePixmap (si->dpy, ssi->screenshot);
+      ssi->screenshot =
+        screenshot_grab (si->dpy, ssi->screensaver_window, False, p->verbose_p);
+    }
+
   if (p->fade_p &&
       !si->demoing_p &&
       !si->emergency_p)
@@ -724,7 +735,6 @@ update_screen_layout (saver_info *si)
 
   free_monitors (si->monitor_layout);
   si->monitor_layout = monitors;
-  check_monitor_sanity (si->monitor_layout);
 
   while (monitors[count])
     {
@@ -787,11 +797,7 @@ update_screen_layout (saver_info *si)
 # ifndef DEBUG_MULTISCREEN
       {
         saver_preferences *p = &si->prefs;
-        if (p->debug_p
-#  ifdef QUAD_MODE
-            && !p->quad_p
-#  endif
-            )
+        if (p->debug_p)
           ssi->width /= 2;
       }
 # endif
@@ -964,7 +970,7 @@ watchdog_timer (XtPointer closure, XtIntervalId *id)
 {
   saver_info *si = (saver_info *) closure;
   saver_preferences *p = &si->prefs;
-  Bool running_p, on_p;
+  Bool running_p, on_p, terminating_p;
 
   /* If the DPMS settings on the server have changed, change them back to
      what ~/.xscreensaver says they should be. */
@@ -977,6 +983,7 @@ watchdog_timer (XtPointer closure, XtIntervalId *id)
 
   running_p = any_screenhacks_running_p (si);
   on_p = monitor_powered_on_p (si->dpy);
+  terminating_p = si->terminating_p;
   if (running_p && !on_p)
     {
       int i;
@@ -988,6 +995,11 @@ watchdog_timer (XtPointer closure, XtIntervalId *id)
         kill_screenhack (&si->screens[i]);
       /* Do not clear current_hack here. */
     }
+  else if (terminating_p)
+    {
+       /* If we are in the process of shutting down and are about to exit,
+          don't re-launch anything just because the monitor came back on. */
+    }
   else if (!running_p && on_p)
     {
       /* If the hack number is set but no hack is running, it is because the
@@ -996,7 +1008,7 @@ watchdog_timer (XtPointer closure, XtIntervalId *id)
          hack going again.  The cycle_timer will also do this (unless "cycle"
          is 0) but watchdog_timer runs more frequently.
        */
-      if (si->screens[0].current_hack >= 0)
+      if (si->nscreens > 0 && si->screens[0].current_hack >= 0)
         {
           int i;
           if (si->prefs.verbose_p)

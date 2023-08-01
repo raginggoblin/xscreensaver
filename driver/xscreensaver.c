@@ -1,4 +1,4 @@
-/* xscreensaver, Copyright © 1991-2021 Jamie Zawinski <jwz@jwz.org>
+/* xscreensaver, Copyright © 1991-2022 Jamie Zawinski <jwz@jwz.org>
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
  * documentation for any purpose is hereby granted without fee, provided that
@@ -223,6 +223,10 @@
 
 #ifdef HAVE_SYS_WAIT_H
 # include <sys/wait.h>		/* for waitpid() and associated macros */
+#endif
+
+#ifndef HAVE_XINPUT
+# error The XInput2 extension is required
 #endif
 
 #include <X11/Xlib.h>
@@ -978,7 +982,9 @@ ensure_no_screensaver_running (Display *dpy)
                    && type != None
                    && (!strcmp ((char *) version, "gnome-screensaver") ||
                        !strcmp ((char *) version, "mate-screensaver") ||
-                       !strcmp ((char *) version, "cinnamon-screensaver")))
+                       !strcmp ((char *) version, "cinnamon-screensaver") ||
+                       !strcmp ((char *) version, "xfce4-screensaver") ||
+                       !strcmp ((char *) version, "light-locker")))
             {
               fprintf (stderr,
                        "%s: \"%s\" is already running on display %s"
@@ -1925,6 +1931,9 @@ main_loop (Display *dpy)
           case XI_RawKeyRelease:
           case XI_RawButtonPress:
           case XI_RawButtonRelease:
+          case XI_RawTouchBegin:
+          case XI_RawTouchEnd:
+          case XI_RawTouchUpdate:
             if (current_state != AUTH &&  /* logged by xscreensaver-auth */
                 (verbose_p > 1 ||
                  (verbose_p && now - active_at > 1)))
@@ -2355,6 +2364,15 @@ main (int argc, char **argv)
         {
           logfile = argv[++i];
           if (!logfile) goto HELP;
+          if (! verbose_p)  /* might already be -vv */
+            verbose_p = cmdline_verbose_p = cmdline_verbose_val = True;
+        }
+      else if (!strcmp (argv[i], "-ver") ||
+               !strcmp (argv[i], "-vers") ||
+               !strcmp (argv[i], "-version"))
+        {
+          fprintf (stderr, "%s\n", screensaver_id+4);
+          exit (1);
         }
       else if (!strcmp (argv[i], "-d") ||
                !strcmp (argv[i], "-dpy") ||
@@ -2381,6 +2399,7 @@ main (int argc, char **argv)
                    "\t\t--verbose\n"
                    "\t\t--no-splash\n"
                    "\t\t--log logfile\n"
+                   "\t\t--version\n"
                    "\n"
                    "\tRun 'xscreensaver-settings' to configure.\n"
                    "\n");
